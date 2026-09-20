@@ -21,11 +21,19 @@
 .PARAMETER OutputRoot
     Carpeta donde se crea cada paquete. Por defecto, la carpeta de este script.
 
+.PARAMETER Sha256
+    SHA256 del ZIP del modelo (64 caracteres hexadecimales). Opcional. Si se indica,
+    se usa en lugar de la tabla, lo que permite generar modelos que aun no estan
+    registrados (lo usa el flujo automatico de GitHub Actions). Solo con un modelo.
+
 .PARAMETER Pack
     Ejecuta 'choco pack' sobre el paquete generado (requiere Chocolatey).
 
 .EXAMPLE
     .\Build-Package.ps1 -Model L3210
+
+.EXAMPLE
+    .\Build-Package.ps1 -Model L1250 -Sha256 <hash del ZIP> -Pack
 
 .EXAMPLE
     .\Build-Package.ps1 -Model L3250,L3260 -Pack
@@ -46,6 +54,9 @@ param(
     [string]$InstallRoot = 'c:\resetentupc.com',
 
     [string]$OutputRoot = $PSScriptRoot,
+
+    [ValidatePattern('^[0-9a-fA-F]{64}$')]
+    [string]$Sha256,
 
     [switch]$Pack
 )
@@ -279,11 +290,19 @@ $InstallRoot = $InstallRoot.TrimEnd('\')
 foreach ($item in $Model) {
     $modelId = $item.ToUpperInvariant()
 
-    if (-not $Models.Contains($modelId)) {
-        throw "Modelo '$modelId' no registrado. Modelos disponibles: $($Models.Keys -join ', ')"
+    if ($PSBoundParameters.ContainsKey('Sha256')) {
+        if ($Model.Count -ne 1) {
+            throw "-Sha256 solo se puede usar con un unico modelo."
+        }
+        $sha256 = $Sha256.ToLowerInvariant()
+    }
+    elseif ($Models.Contains($modelId)) {
+        $sha256 = $Models[$modelId]
+    }
+    else {
+        throw "Modelo '$modelId' no registrado. Use -Sha256 o agreguelo a la tabla. Modelos registrados: $($Models.Keys -join ', ')"
     }
 
-    $sha256 = $Models[$modelId]
     if ($sha256 -notmatch '^[0-9a-f]{64}$') {
         throw "SHA256 invalido para el modelo '$modelId'."
     }
