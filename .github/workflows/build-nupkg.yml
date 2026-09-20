@@ -1,0 +1,94 @@
+name: Generar nupkg de Chocolatey
+
+# Al publicar un release que incluya Reset-Epson-Lxxxx.zip, genera lxxxx.1.0.0.nupkg
+# y lo adjunta al mismo release. Tambien se puede lanzar a mano (Actions > Run workflow)
+# para un release que ya existe, indicando su tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag del release (ejemplo: L1250)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nupkg-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  nupkg:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Descargar el codigo del repositorio
+        uses: actions/checkout@v4
+
+      - name: Localizar el ZIP del release
+        id: zip
+        shell: pwsh
+        run: |
+          if ($env:TAG -notmatch '^[A-Za-z0-9._-]+$') { throw "Tag no valido: '$($env:TAG)'" }
+          $names = @(gh release view $env:TAG --repo $env:REPO --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo leer el release '$($env:TAG)'." }
+          $zip = $names | Where-Object { $_ -match '^Reset-Epson-L\d{4}\.zip$' } | Select-Object -First 1
+          if (-not $zip) {
+            Write-Host "El release '$($env:TAG)' no contiene Reset-Epson-Lxxxx.zip. No hay nada que generar."
+            "found=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          $model = $zip -replace '^Reset-Epson-(L\d{4})\.zip$', '$1'
+          "found=true" >> $env:GITHUB_OUTPUT
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "model=$model" >> $env:GITHUB_OUTPUT
+          Write-Host "ZIP: $zip  Modelo: $model"
+
+      - name: Descargar el ZIP y calcular su SHA256
+        if: steps.zip.outputs.found == 'true'
+        id: hash
+        shell: pwsh
+        env:
+          ZIP_NAME: ${{ steps.zip.outputs.zip }}
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'dl'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          gh release download $env:TAG --repo $env:REPO --pattern $env:ZIP_NAME --dir $dir --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo descargar el ZIP del release.' }
+          $sha = (Get-FileHash -LiteralPath (Join-Path $dir $env:ZIP_NAME) -Algorithm SHA256).Hash.ToLower()
+          "sha256=$sha" >> $env:GITHUB_OUTPUT
+          Write-Host "SHA256 de $($env:ZIP_NAME): $sha"
+
+      - name: Generar el paquete Chocolatey
+        if: steps.zip.outputs.found == 'true'
+        id: pack
+        shell: pwsh
+        env:
+          MODEL: ${{ steps.zip.outputs.model }}
+          ZIP_SHA256: ${{ steps.hash.outputs.sha256 }}
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'pkg'
+          ./chocolatey/Build-Package.ps1 -Model $env:MODEL -Sha256 $env:ZIP_SHA256 -OutputRoot $out -Pack
+          $id = $env:MODEL.ToLowerInvariant()
+          $nupkg = Join-Path $out "$id/$id.1.0.0.nupkg"
+          if (-not (Test-Path -LiteralPath $nupkg)) { throw "No se genero $nupkg" }
+          "nupkg=$nupkg" >> $env:GITHUB_OUTPUT
+          Get-Item -LiteralPath $nupkg | Format-List Name, Length
+
+      - name: Adjuntar el nupkg al mismo release
+        if: steps.zip.outputs.found == 'true'
+        shell: pwsh
+        env:
+          NUPKG: ${{ steps.pack.outputs.nupkg }}
+        run: |
+          gh release upload $env:TAG $env:NUPKG --repo $env:REPO --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo adjuntar el nupkg al release.' }
+          $name = Split-Path -Leaf $env:NUPKG
+          Write-Host "Adjuntado al release '$($env:TAG)': $name"
+          "### nupkg generado`n- Release: $($env:TAG)`n- Archivo: $name" >> $env:GITHUB_STEP_SUMMARY
