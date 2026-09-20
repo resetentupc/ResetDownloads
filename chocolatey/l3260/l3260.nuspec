@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>l3260</id>
+    <version>1.0.0</version>
+    <title>Reset Epson L3260</title>
+    <authors>ResetEntuPc</authors>
+    <owners>ResetEntuPc</owners>
+
+    <projectUrl>https://resetentupc.com</projectUrl>
+    <projectSourceUrl>https://github.com/resetentupc/ResetDownloads</projectSourceUrl>
+    <packageSourceUrl>https://github.com/resetentupc/ResetDownloads</packageSourceUrl>
+
+    <description>
+      Herramienta de Reset para Epson L3260 distribuida por ResetEntuPc.
+
+      Este paquete descarga el archivo Reset-Epson-L3260.zip desde GitHub Releases
+      (https://github.com/resetentupc/ResetDownloads), verifica su integridad mediante SHA256,
+      lo instala en c:\resetentupc.com\reset-epson-l3260 y crea el acceso directo
+      "Reset Epson L3260".
+    </description>
+
+    <summary>Reset Epson L3260</summary>
+
+    <releaseNotes>Versi&#243;n inicial.</releaseNotes>
+
+    <tags>
+      epson l3260 reset impresora resetentupc
+    </tags>
+
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+  </metadata>
+
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
