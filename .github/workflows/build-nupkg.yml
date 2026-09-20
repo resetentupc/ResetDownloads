@@ -1,6 +1,6 @@
 name: Generar nupkg de Chocolatey
 
-# Al publicar un release que incluya Reset-Epson-Lxxxx.zip, genera lxxxx.1.0.0.nupkg
+# Al publicar un release que incluya Reset-Epson-L1234.zip o Reset-Epson-ET-1234.zip, genera l1234.1.0.0.nupkg
 # y lo adjunta al mismo release. Tambien se puede lanzar a mano (Actions > Run workflow)
 # para un release que ya existe, indicando su tag.
 on:
@@ -38,13 +38,13 @@ jobs:
           if ($env:TAG -notmatch '^[A-Za-z0-9._-]+$') { throw "Tag no valido: '$($env:TAG)'" }
           $names = @(gh release view $env:TAG --repo $env:REPO --json assets --jq '.assets[].name')
           if ($LASTEXITCODE -ne 0) { throw "No se pudo leer el release '$($env:TAG)'." }
-          $zip = $names | Where-Object { $_ -match '^Reset-Epson-L\d{4}\.zip$' } | Select-Object -First 1
+          $zip = $names | Where-Object { $_ -match '^Reset-Epson-(L|ET-)\d{4}\.zip$' } | Select-Object -First 1
           if (-not $zip) {
-            Write-Host "El release '$($env:TAG)' no contiene Reset-Epson-Lxxxx.zip. No hay nada que generar."
+            Write-Host "El release '$($env:TAG)' no contiene Reset-Epson-<modelo>.zip (modelos L1234 o ET-1234). No hay nada que generar."
             "found=false" >> $env:GITHUB_OUTPUT
             exit 0
           }
-          $model = $zip -replace '^Reset-Epson-(L\d{4})\.zip$', '$1'
+          $model = $zip -replace '^Reset-Epson-((L|ET-)\d{4})\.zip$', '$1'
           "found=true" >> $env:GITHUB_OUTPUT
           "zip=$zip" >> $env:GITHUB_OUTPUT
           "model=$model" >> $env:GITHUB_OUTPUT
