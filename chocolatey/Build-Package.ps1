@@ -53,7 +53,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidatePattern('^(L|ET-)\d{3,4}$')]
+    [ValidatePattern('^(L|ET-|WF-)\d{3,4}$')]
     [string[]]$Model,
 
     [ValidatePattern('^\d+\.\d+\.\d+$')]
