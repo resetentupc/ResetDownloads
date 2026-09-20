@@ -5,8 +5,9 @@
 .DESCRIPTION
     Contiene la plantilla maestra (nuspec, chocolateyInstall.ps1 y
     chocolateyUninstall.ps1) y una tabla Modelo -> SHA256. A partir del modelo
-    deriva packageName, tag, ZIP, EXE y acceso directo, y genera la carpeta del
-    paquete. No descarga nada. Solo escribe en <OutputRoot>\<packageName>.
+    deriva packageName (id corto: l3210), carpeta de instalacion (reset-epson-l3210),
+    tag, ZIP, EXE y acceso directo, y genera la carpeta del paquete. No descarga
+    nada. Solo escribe en <OutputRoot>\<packageName>.
 
 .PARAMETER Model
     Modelo(s) a generar, por ejemplo L3210. Acepta varios: -Model L3250,L3260
@@ -15,7 +16,7 @@
     Version del paquete. Por defecto 1.0.0.
 
 .PARAMETER InstallRoot
-    Carpeta raiz de instalacion en el equipo destino. Por defecto C:\ResetEntuPc.com
+    Carpeta raiz de instalacion en el equipo destino. Por defecto c:\resetentupc.com
 
 .PARAMETER OutputRoot
     Carpeta donde se crea cada paquete. Por defecto, la carpeta de este script.
@@ -42,7 +43,7 @@ param(
     [string]$Version = '1.0.0',
 
     [ValidatePattern('^[A-Za-z]:\\[\w .\\-]+$')]
-    [string]$InstallRoot = 'C:\ResetEntuPc.com',
+    [string]$InstallRoot = 'c:\resetentupc.com',
 
     [string]$OutputRoot = $PSScriptRoot,
 
@@ -85,7 +86,7 @@ $NuspecTemplate = @'
 
       Este paquete descarga el archivo {{ZipName}} desde GitHub Releases
       ({{RepoUrl}}), verifica su integridad mediante SHA256,
-      lo instala en {{InstallRoot}}\{{PackageName}} y crea el acceso directo
+      lo instala en {{InstallRoot}}\{{FolderName}} y crea el acceso directo
       "{{Title}}".
     </description>
 
@@ -116,6 +117,7 @@ $ErrorActionPreference = 'Stop'
 # Parametros del modelo (unico bloque que cambia entre paquetes)
 # ---------------------------------------------------------------
 $packageName  = '{{PackageName}}'
+$folderName   = '{{FolderName}}'
 $releaseTag   = '{{ReleaseTag}}'
 $zipName      = '{{ZipName}}'
 $exeName      = '{{ExeName}}'
@@ -129,13 +131,13 @@ $baseUrl     = '{{BaseUrl}}'
 $installRoot = '{{InstallRoot}}'
 
 $url          = "$baseUrl/$releaseTag/$zipName"
-$installDir   = Join-Path $installRoot $packageName
+$installDir   = Join-Path $installRoot $folderName
 $exePath      = Join-Path $installDir $exeName
 $desktopDir   = [Environment]::GetFolderPath('CommonDesktopDirectory')
 $shortcutPath = Join-Path $desktopDir $shortcutName
 
 # Salvaguarda: solo se puede borrar/escribir dentro de la carpeta propia del paquete.
-if ([string]::IsNullOrWhiteSpace($packageName) -or
+if ([string]::IsNullOrWhiteSpace($folderName) -or
     -not $installDir.StartsWith("$installRoot\", [StringComparison]::OrdinalIgnoreCase)) {
     throw "Ruta de instalacion invalida: '$installDir'"
 }
@@ -207,6 +209,7 @@ $ErrorActionPreference = 'Stop'
 # Parametros del modelo (deben coincidir con chocolateyInstall.ps1)
 # ---------------------------------------------------------------
 $packageName  = '{{PackageName}}'
+$folderName   = '{{FolderName}}'
 $shortcutName = '{{ShortcutName}}'
 
 # ---------------------------------------------------------------
@@ -214,12 +217,12 @@ $shortcutName = '{{ShortcutName}}'
 # ---------------------------------------------------------------
 $installRoot  = '{{InstallRoot}}'
 
-$installDir   = Join-Path $installRoot $packageName
+$installDir   = Join-Path $installRoot $folderName
 $desktopDir   = [Environment]::GetFolderPath('CommonDesktopDirectory')
 $shortcutPath = Join-Path $desktopDir $shortcutName
 
 # Salvaguarda: solo se puede borrar dentro de la carpeta propia del paquete.
-if ([string]::IsNullOrWhiteSpace($packageName) -or
+if ([string]::IsNullOrWhiteSpace($folderName) -or
     -not $installDir.StartsWith("$installRoot\", [StringComparison]::OrdinalIgnoreCase)) {
     throw "Ruta de instalacion invalida: '$installDir'"
 }
@@ -285,10 +288,12 @@ foreach ($item in $Model) {
         throw "SHA256 invalido para el modelo '$modelId'."
     }
 
-    $packageName = "reset-epson-$($modelId.ToLowerInvariant())"
+    $packageName = $modelId.ToLowerInvariant()
+    $folderName  = "reset-epson-$packageName"
 
     $tokens = @{
         PackageName  = $packageName
+        FolderName   = $folderName
         Version      = $Version
         Title        = "Reset Epson $modelId"
         ModelName    = "Epson $modelId"
@@ -345,5 +350,5 @@ foreach ($item in $Model) {
     }
 
     Write-Host "  Instalacion local con una linea:"
-    Write-Host "    choco install $packageName -y --source `"$packageDir`""
+    Write-Host "    choco install $packageName -y -s `"$packageDir`""
 }
