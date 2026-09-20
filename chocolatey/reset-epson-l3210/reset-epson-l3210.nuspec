@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>reset-epson-l3210</id>
+    <version>1.0.0</version>
+    <title>Reset Epson L3210</title>
+    <authors>ResetEntuPc</authors>
+    <owners>ResetEntuPc</owners>
+
+    <projectUrl>https://resetentupc.com</projectUrl>
+    <projectSourceUrl>https://github.com/resetentupc/ResetDownloads</projectSourceUrl>
+    <packageSourceUrl>https://github.com/resetentupc/ResetDownloads</packageSourceUrl>
+
+    <description>
+      Herramienta de Reset para Epson L3210 distribuida por ResetEntuPc.
+
+      Este paquete descarga el archivo Reset-Epson-L3210.zip desde GitHub Releases
+      (https://github.com/resetentupc/ResetDownloads), verifica su integridad mediante SHA256,
+      lo instala en C:\ResetEntuPc.com\reset-epson-l3210 y crea el acceso directo
+      "Reset Epson L3210".
+    </description>
+
+    <summary>Reset Epson L3210</summary>
+
+    <releaseNotes>Versi&#243;n inicial.</releaseNotes>
+
+    <tags>
+      epson l3210 reset impresora resetentupc
+    </tags>
+
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+  </metadata>
+
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
