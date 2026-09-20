@@ -26,6 +26,15 @@
     se usa en lugar de la tabla, lo que permite generar modelos que aun no estan
     registrados (lo usa el flujo automatico de GitHub Actions). Solo con un modelo.
 
+.PARAMETER ReleaseTag
+    Tag real del release de GitHub donde esta el ZIP. Opcional. Por defecto es el
+    propio modelo (por ejemplo L3210). Se usa cuando el tag no coincide con el modelo
+    (por ejemplo ET-2850-22). Solo con un modelo.
+
+.PARAMETER ZipName
+    Nombre real del ZIP en el release. Opcional. Por defecto Reset-Epson-<modelo>.zip.
+    Se usa cuando el nombre difiere (por ejemplo Reset-EPSON-L382.zip). Solo con un modelo.
+
 .PARAMETER Pack
     Ejecuta 'choco pack' sobre el paquete generado (requiere Chocolatey).
 
@@ -44,7 +53,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidatePattern('^(L|ET-)\d{4}$')]
+    [ValidatePattern('^(L|ET-)\d{3,4}$')]
     [string[]]$Model,
 
     [ValidatePattern('^\d+\.\d+\.\d+$')]
@@ -57,6 +66,12 @@ param(
 
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
     [string]$Sha256,
+
+    [ValidatePattern('^[A-Za-z0-9._-]+$')]
+    [string]$ReleaseTag,
+
+    [ValidatePattern('^[A-Za-z0-9._-]+\.zip$')]
+    [string]$ZipName,
 
     [switch]$Pack
 )
@@ -287,6 +302,10 @@ $InstallRoot = $InstallRoot.TrimEnd('\')
 # ---------------------------------------------------------------
 # Generacion
 # ---------------------------------------------------------------
+if ($Model.Count -ne 1 -and ($PSBoundParameters.ContainsKey('ReleaseTag') -or $PSBoundParameters.ContainsKey('ZipName'))) {
+    throw "-ReleaseTag y -ZipName solo se pueden usar con un unico modelo."
+}
+
 foreach ($item in $Model) {
     $modelId = $item.ToUpperInvariant()
 
@@ -317,8 +336,8 @@ foreach ($item in $Model) {
         Title        = "Reset Epson $modelId"
         ModelName    = "Epson $modelId"
         ModelLower   = $modelId.ToLowerInvariant()
-        ReleaseTag   = $modelId
-        ZipName      = "Reset-Epson-$modelId.zip"
+        ReleaseTag   = $(if ($PSBoundParameters.ContainsKey('ReleaseTag')) { $ReleaseTag } else { $modelId })
+        ZipName      = $(if ($PSBoundParameters.ContainsKey('ZipName')) { $ZipName } else { "Reset-Epson-$modelId.zip" })
         ExeName      = "Reset-Epson-$modelId.exe"
         ShortcutName = "Reset Epson $modelId.lnk"
         Sha256       = $sha256
