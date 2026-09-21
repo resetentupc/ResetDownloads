@@ -1,7 +1,7 @@
 name: Generar nupkg de Chocolatey
 
 # Al publicar un release que incluya Reset-Epson-L123.zip, Reset-Epson-L1234.zip o
-# Reset-Epson-ET-1234.zip, Reset-Epson-XP-1234.zip, Reset-Epson-Artisan-1234.zip, etc. (mayusculas o minusculas), genera l1234.1.0.0.nupkg y lo adjunta al
+# Reset-Epson-ET-1234.zip, Reset-Epson-XP-1234.zip, Reset-Canon-G1234.zip, Reset-Canon-TS1234.zip, etc. (mayusculas o minusculas), genera l1234.1.0.0.nupkg y lo adjunta al
 # mismo release. Usa el tag y el nombre de ZIP reales del release. Si el ZIP aun no esta, espera
 # hasta 5 minutos. Tambien se puede lanzar a mano (Actions > Run workflow) indicando el tag.
 on:
@@ -44,7 +44,7 @@ jobs:
           for ($i = 1; $i -le $maxIntentos; $i++) {
             $names = @(gh release view $env:TAG --repo $env:REPO --json assets --jq '.assets[].name')
             if ($LASTEXITCODE -ne 0) { throw "No se pudo leer el release '$($env:TAG)'." }
-            $zip = $names | Where-Object { $_ -match '^Reset-Epson-(L|M|ET-|WF-|XP-|SP-|CX-|SC-P|Artisan-)\d{3,4}\.zip$' } | Select-Object -First 1
+            $zip = $names | Where-Object { $_ -match '^Reset-(Epson-((L|M|ET-|WF-|XP-|SP-|CX-|Artisan-)\d{3,4}|SC-[FPT]\d{3,4}[A-Z]?)|Canon-(G|IX|MB|TR|TS)\d{3,4})\.zip$' } | Select-Object -First 1
             if ($zip) { break }
             if ($i -lt $maxIntentos) {
               Write-Host "Aun no hay ZIP en el release (intento $i de $maxIntentos). Espero 20 segundos..."
@@ -52,11 +52,11 @@ jobs:
             }
           }
           if (-not $zip) {
-            Write-Host "El release '$($env:TAG)' no contiene Reset-Epson-<modelo>.zip (modelos L123, L1234, ET-1234, WF-1234, XP-1234, SP-1234, CX-1234, SC-P123, M1234 o Artisan-1234). No hay nada que generar."
+            Write-Host "El release '$($env:TAG)' no contiene Reset-Epson-<modelo>.zip ni Reset-Canon-<modelo>.zip (Epson: L123, L1234, ET-1234, WF-1234, XP-1234, SP-1234, CX-1234, SC-P123, SC-F123, SC-T1234, SC-T1234X, M1234, Artisan-1234; Canon: G1234, IX1234, MB1234, TR1234, TS1234). No hay nada que generar."
             "found=false" >> $env:GITHUB_OUTPUT
             exit 0
           }
-          $model = ($zip -replace '^Reset-Epson-((L|M|ET-|WF-|XP-|SP-|CX-|SC-P|Artisan-)\d{3,4})\.zip$', '$1').ToUpperInvariant()
+          $model = ($zip -replace '^Reset-(?:Epson|Canon)-(.+)\.zip$', '$1').ToUpperInvariant()
           $model = $model -replace '^ARTISAN-', 'Artisan-'
           "found=true" >> $env:GITHUB_OUTPUT
           "zip=$zip" >> $env:GITHUB_OUTPUT
