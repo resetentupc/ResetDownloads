@@ -18,6 +18,9 @@
     - Al terminar una instalación con éxito muestra el "Paso final" con un único botón de
       WhatsApp (el PC ID es opcional).
     - Los comandos de Chocolatey se ejecutan en segundo plano, sin congelar la ventana.
+    - Tras un choco install correcto: abre el programa instalado (para ver el PC ID), crea el acceso
+      directo "Reset Epson <MODELO>" en el Escritorio y, en el Menú Inicio, la carpeta "ResetEntuPC"
+      con el acceso para abrirlo y "Desinstalar <MODELO>" (choco uninstall <paquete> -y).
 
     Seguridad:
     - Solo descarga desde https://github.com/resetentupc/ResetDownloads/releases/download/
@@ -325,6 +328,11 @@ else { Get-Content -LiteralPath $url -Raw -Encoding UTF8 }
 
 # Códigos de salida de choco que significan "correcto" (0 = ok; 1641/3010 = ok, pide reiniciar).
 $script:CodigosOk = @('0', '1641', '3010')
+
+# Acciones posteriores a la instalación: dónde deja el paquete el programa y cómo se llama la carpeta del Menú Inicio.
+# (Misma raíz que usa Build-Package.ps1: C:\resetentupc.com\reset-epson-<id>\Reset-Epson-<MODELO>.exe)
+$script:InstallRoot = 'C:\resetentupc.com'
+$script:CarpetaMenu = 'ResetEntuPC'
 
 # Contacto: un único canal, WhatsApp.
 $script:WhatsAppNumero = '573245322603'
@@ -728,6 +736,138 @@ function Update-CargaModelos {
 # ============================================================================
 # 5. EJECUCIÓN EN SEGUNDO PLANO (runspace + temporizador; la ventana no se congela)
 # ============================================================================
+# ============================================================================
+# 4b. ACCIONES POSTERIORES A LA INSTALACIÓN (solo tras un choco install correcto)
+#     1) abrir el programa  2) acceso directo en el Escritorio  3) acceso directo en el Menú Inicio
+#     (carpeta "ResetEntuPC")  4) acceso directo "Desinstalar <MODELO>" en esa carpeta.
+#     Cada acción es independiente: si una falla, se avisa en el registro y las demás continúan.
+# ============================================================================
+function Get-DirEscritorio { if ($script:DirEscritorio) { return $script:DirEscritorio } return [Environment]::GetFolderPath('Desktop') }
+function Get-DirProgramas  { if ($script:DirProgramas)  { return $script:DirProgramas }  return [Environment]::GetFolderPath('Programs') }
+
+# Localiza el .exe del reset instalado por el paquete (solo dentro de su carpeta de instalación).
+function Find-ExeReset {
+    param($Item)
+    $carpeta = Join-Path $script:InstallRoot ('reset-epson-' + $Item.Id)
+    if (-not (Test-Path -LiteralPath $carpeta -PathType Container)) { return $null }
+    $exacto = Join-Path $carpeta ("Reset-Epson-$($Item.Modelo).exe")
+    if (Test-Path -LiteralPath $exacto -PathType Leaf) { return $exacto }
+    $otros = @(Get-ChildItem -LiteralPath $carpeta -Filter 'Reset-Epson-*.exe' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName)
+    if ($otros.Count -gt 0) { return $otros[0].FullName }
+    return $null
+}
+
+# Crea un acceso directo (.lnk) con WScript.Shell. -Administrador marca "Ejecutar como administrador".
+function New-AccesoDirecto {
+    param([string]$Ruta, [string]$Destino, [string]$Argumentos = '', [string]$Directorio = '',
+          [string]$Icono = '', [string]$Descripcion = '', [switch]$Administrador)
+    $sh = New-Object -ComObject WScript.Shell
+    try {
+        $lnk = $sh.CreateShortcut($Ruta)
+        $lnk.TargetPath = $Destino
+        if ($Argumentos)   { $lnk.Arguments = $Argumentos }
+        if ($Directorio)   { $lnk.WorkingDirectory = $Directorio }
+        if ($Icono)        { $lnk.IconLocation = $Icono }
+        if ($Descripcion)  { $lnk.Description = $Descripcion }
+        $lnk.Save()
+    }
+    finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($sh) }
+    if ($Administrador) {
+        # Bit "RunAsAdministrator" de la cabecera del .lnk (byte 0x15, valor 0x20): la única forma de pedirlo.
+        $b = [IO.File]::ReadAllBytes($Ruta)
+        $b[0x15] = $b[0x15] -bor 0x20
+        [IO.File]::WriteAllBytes($Ruta, $b)
+    }
+}
+
+# Abre el programa (función aparte para poder sustituirla en las pruebas).
+function Open-Programa {
+    param([string]$Exe)
+    Start-Process -FilePath $Exe -WorkingDirectory (Split-Path -Parent $Exe)
+}
+
+function Get-RutasAccesos {
+    param($Item)
+    $carpetaMenu = Join-Path (Get-DirProgramas) $script:CarpetaMenu
+    return @{
+        CarpetaMenu = $carpetaMenu
+        Escritorio  = Join-Path (Get-DirEscritorio) ("Reset Epson $($Item.Modelo).lnk")
+        MenuAbrir   = Join-Path $carpetaMenu ("Reset Epson $($Item.Modelo).lnk")
+        MenuDesinst = Join-Path $carpetaMenu ("Desinstalar $($Item.Modelo).lnk")
+    }
+}
+
+function Invoke-AccionesPostInstalacion {
+    param($Item)
+    $res = @{ Exe = $null; Escritorio = $false; MenuAbrir = $false; MenuDesinstalar = $false; Abierto = $false }
+    if ($script:Prueba) {
+        Add-Log '[SIMULACIÓN] Aquí se abriría el programa y se crearían los accesos directos (Escritorio y Menú Inicio).'
+        return $res
+    }
+    # El id sale del diccionario ya validado; el nombre solo lleva letras, cifras y guion.
+    if ($Item.Id -cnotmatch $script:PatronId -or $Item.Modelo -notmatch '^[A-Za-z0-9-]{3,20}$') {
+        Add-Log '[aviso] Modelo no válido: no se crean accesos directos.'
+        return $res
+    }
+    $rutas = Get-RutasAccesos $Item
+    $exe = Find-ExeReset $Item
+    $res.Exe = $exe
+    if (-not $exe) {
+        Add-Log ("[aviso] No se encontró el programa en " + (Join-Path $script:InstallRoot ('reset-epson-' + $Item.Id)) + " (un antivirus pudo bloquearlo). No se abrió ni se crearon los accesos de Escritorio y Menú Inicio.")
+    }
+
+    if ($exe) {
+        # 2) Acceso directo en el Escritorio
+        try {
+            New-AccesoDirecto -Ruta $rutas.Escritorio -Destino $exe -Directorio (Split-Path -Parent $exe) -Icono "$exe,0" -Descripcion "Reset Epson $($Item.Modelo)"
+            $res.Escritorio = $true; Add-Log "[ok] Acceso directo en el Escritorio: $($rutas.Escritorio)"
+        }
+        catch { Add-Log "[aviso] No se pudo crear el acceso directo del Escritorio: $($_.Exception.Message)" }
+    }
+
+    # 3) y 4) Carpeta "ResetEntuPC" en el Menú Inicio
+    try {
+        if (-not (Test-Path -LiteralPath $rutas.CarpetaMenu)) { [void](New-Item -ItemType Directory -Path $rutas.CarpetaMenu -Force) }
+        if ($exe) {
+            New-AccesoDirecto -Ruta $rutas.MenuAbrir -Destino $exe -Directorio (Split-Path -Parent $exe) -Icono "$exe,0" -Descripcion "Reset Epson $($Item.Modelo)"
+            $res.MenuAbrir = $true; Add-Log "[ok] Acceso directo en el Menú Inicio: $($rutas.MenuAbrir)"
+        }
+        # "Desinstalar <MODELO>": ejecuta choco uninstall <paquete> -y (como administrador) y, si sale bien,
+        # borra solo los accesos directos que creó este instalador (nunca otros archivos).
+        $q = { param($x) $x.Replace("'", "''") }
+        $borrar = "'" + (& $q $rutas.Escritorio) + "','" + (& $q $rutas.MenuAbrir) + "','" + (& $q $rutas.MenuDesinst) + "'"
+        $orden = "choco uninstall $($Item.Id) -y; if (`$LASTEXITCODE -eq 0) { Remove-Item -LiteralPath $borrar -Force -ErrorAction SilentlyContinue; " +
+                 "try { [IO.Directory]::Delete('" + (& $q $rutas.CarpetaMenu) + "') } catch { } }; Start-Sleep -Seconds 4"
+        $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        New-AccesoDirecto -Ruta $rutas.MenuDesinst -Destino $ps -Argumentos ('-NoProfile -Command "' + $orden + '"') `
+            -Directorio (Join-Path $env:SystemRoot 'System32') -Descripcion "Desinstalar Reset Epson $($Item.Modelo)" -Administrador
+        $res.MenuDesinstalar = $true; Add-Log "[ok] Acceso directo de desinstalación: $($rutas.MenuDesinst)"
+    }
+    catch { Add-Log "[aviso] No se pudieron crear los accesos del Menú Inicio: $($_.Exception.Message)" }
+
+    # 1) Abrir el programa para que el cliente vea el PC ID de inmediato
+    if ($exe) {
+        try { Open-Programa $exe; $res.Abierto = $true; Add-Log "[ok] Programa abierto: $exe" }
+        catch { Add-Log "[aviso] No se pudo abrir el programa automáticamente: $($_.Exception.Message)" }
+    }
+    return $res
+}
+
+# Al desinstalar desde este programa se retiran también los accesos directos que creó este instalador.
+function Remove-AccesosDirectos {
+    param($Item)
+    if ($script:Prueba) { return }
+    try {
+        $rutas = Get-RutasAccesos $Item
+        foreach ($f in @($rutas.Escritorio, $rutas.MenuAbrir, $rutas.MenuDesinst)) {
+            if (Test-Path -LiteralPath $f -PathType Leaf) { [IO.File]::Delete($f) }
+        }
+        try { [IO.Directory]::Delete($rutas.CarpetaMenu) } catch { }   # solo si quedó vacía
+        Add-Log '[ok] Accesos directos de este instalador retirados.'
+    }
+    catch { Add-Log "[aviso] No se pudieron retirar los accesos directos: $($_.Exception.Message)" }
+}
+
 function Start-Accion {
     param([ValidateSet('Instalar', 'Reinstalar', 'Desinstalar')][string]$Accion)
     $s = $script:State
@@ -841,11 +981,14 @@ function Complete-Accion {
 
     if ($s.Accion -eq 'Desinstalar') {
         Set-Estado "Reset Epson $m se desinstaló correctamente." 'Ok'
+        Remove-AccesosDirectos $s.ModeloEnCurso
         return
     }
 
     # Instalación o reinstalación correcta: se muestra el "Paso final" (activación).
     $s.ModeloInstalado = $s.ModeloEnCurso
+    # choco install terminó bien: abrir el programa y crear los accesos directos.
+    $s.PostAcciones = Invoke-AccionesPostInstalacion $s.ModeloEnCurso
     Set-Estado '¡Instalación completada! Sigue el "Paso final" de la derecha.' 'Ok'
     Show-Panel 'final' $m
     if (-not $script:Prueba) {
