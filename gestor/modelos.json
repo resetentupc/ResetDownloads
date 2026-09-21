@@ -142,6 +142,7 @@
     { "modelo": "TS3400", "id": "ts3400", "tag": "TS3400", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/TS3400/ts3400.1.0.0.nupkg" },
     { "modelo": "TS3410", "id": "ts3410", "tag": "TS3410", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/TS3410/ts3410.1.0.0.nupkg" },
     { "modelo": "TS3420", "id": "ts3420", "tag": "TS3420", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/TS3420/ts3420.1.0.0.nupkg" },
+    { "modelo": "TS5150", "id": "ts5150", "tag": "TS5150", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/TS5150/ts5150.1.0.0.nupkg" },
     { "modelo": "WF-545", "id": "wf-545", "tag": "WF-545", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/WF-545/wf-545.1.0.0.nupkg" },
     { "modelo": "WF-645", "id": "wf-645", "tag": "WF-645", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/WF-645/wf-645.1.0.0.nupkg" },
     { "modelo": "WF-2520", "id": "wf-2520", "tag": "WF-2520", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/WF-2520/wf-2520.1.0.0.nupkg" },
