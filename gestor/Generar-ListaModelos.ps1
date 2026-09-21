@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Genera gestor/modelos.json: la lista de modelos que lee el instalador de ResetEntuPC.com.
 
@@ -37,7 +37,7 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
 # Mismos patrones que valida el instalador: lo que no encaje no entra en la lista.
-$patronId  = '^(l|m|et-|wf-|xp-|sp-|cx-|sc-p|artisan-)\d{3,4}$'
+$patronId  = '^(l|m|et-|wf-|xp-|sp-|cx-|sc-p|artisan-|g|ix|mb|tr|ts)\d{3,4}$'
 $patronTag = '^[A-Za-z0-9][A-Za-z0-9._-]{0,60}$'
 $baseDescarga = "https://github.com/$Repo/releases/download"
 
