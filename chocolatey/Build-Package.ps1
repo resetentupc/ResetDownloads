@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Genera paquetes Chocolatey de ResetEntuPc para herramientas de reset Epson.
+    Genera paquetes Chocolatey de ResetEntuPc para herramientas de reset Epson y Canon (la marca se deduce del modelo: G, IX, MB, TR y TS son Canon; el resto, Epson).
 
 .DESCRIPTION
     Contiene la plantilla maestra (nuspec, chocolateyInstall.ps1 y
     chocolateyUninstall.ps1) y una tabla Modelo -> SHA256. A partir del modelo
-    deriva packageName (id corto: l3210), carpeta de instalacion (reset-epson-l3210),
+    deriva packageName (id corto: l3210), carpeta de instalacion (reset-epson-l3210 o reset-canon-g1100),
     tag, ZIP, EXE y acceso directo, y genera la carpeta del paquete. No descarga
     nada. Solo escribe en <OutputRoot>\<packageName>.
 
@@ -32,7 +32,7 @@
     (por ejemplo ET-2850-22). Solo con un modelo.
 
 .PARAMETER ZipName
-    Nombre real del ZIP en el release. Opcional. Por defecto Reset-Epson-<modelo>.zip.
+    Nombre real del ZIP en el release. Opcional. Por defecto Reset-<Marca>-<modelo>.zip.
     Se usa cuando el nombre difiere (por ejemplo Reset-EPSON-L382.zip). Solo con un modelo.
 
 .PARAMETER Pack
@@ -53,7 +53,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidatePattern('^(L|M|ET-|WF-|XP-|SP-|CX-|SC-P|Artisan-)\d{3,4}$')]
+    [ValidatePattern('^((L|M|ET-|WF-|XP-|SP-|CX-|Artisan-|G|IX|MB|TR|TS)\d{3,4}|SC-[FPT]\d{3,4}[A-Z]?)$')]
     [string[]]$Model,
 
     [ValidatePattern('^\d+\.\d+\.\d+$')]
@@ -121,7 +121,7 @@ $NuspecTemplate = @'
     <releaseNotes>Versi&#243;n inicial.</releaseNotes>
 
     <tags>
-      epson {{ModelLower}} reset impresora resetentupc
+      {{MarcaLower}} {{ModelLower}} reset impresora resetentupc
     </tags>
 
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
@@ -327,19 +327,25 @@ foreach ($item in $Model) {
     }
 
     $packageName = $modelId.ToLowerInvariant()
-    $folderName  = "reset-epson-$packageName"
+    # Marca: G, IX, MB, TR y TS son Canon; todo lo demas es Epson.
+    $marca       = if ($modelId -cmatch '^(G|IX|MB|TR|TS)\d') { 'Canon' } else { 'Epson' }
+    # Ejecutable que abre el acceso directo: Reset-<Marca>-<MODELO>.exe; los plotters SC-F y SC-T (SureColor) traen
+    # ServiceSupportTool.exe en la raiz del ZIP.
+    $exeName     = if ($modelId -cmatch '^SC-[FT]\d') { 'ServiceSupportTool.exe' } else { "Reset-$marca-$modelId.exe" }
+    $folderName  = "reset-$($marca.ToLowerInvariant())-$packageName"
 
     $tokens = @{
         PackageName  = $packageName
         FolderName   = $folderName
         Version      = $Version
-        Title        = "Reset Epson $modelId"
-        ModelName    = "Epson $modelId"
+        Title        = "Reset $marca $modelId"
+        ModelName    = "$marca $modelId"
+        MarcaLower   = $marca.ToLowerInvariant()
         ModelLower   = $modelId.ToLowerInvariant()
         ReleaseTag   = $(if ($PSBoundParameters.ContainsKey('ReleaseTag')) { $ReleaseTag } else { $modelId })
-        ZipName      = $(if ($PSBoundParameters.ContainsKey('ZipName')) { $ZipName } else { "Reset-Epson-$modelId.zip" })
-        ExeName      = "Reset-Epson-$modelId.exe"
-        ShortcutName = "Reset Epson $modelId.lnk"
+        ZipName      = $(if ($PSBoundParameters.ContainsKey('ZipName')) { $ZipName } else { "Reset-$marca-$modelId.zip" })
+        ExeName      = $exeName
+        ShortcutName = "Reset $marca $modelId.lnk"
         Sha256       = $sha256
         InstallRoot  = $InstallRoot
         BaseUrl      = $BaseUrl
