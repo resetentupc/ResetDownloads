@@ -53,7 +53,7 @@
 [CmdletBinding(SupportsShouldProcess)]
 param(
     [Parameter(Mandatory, Position = 0)]
-    [ValidatePattern('^(L|ET-|WF-|XP-)\d{3,4}$')]
+    [ValidatePattern('^(L|M|ET-|WF-|XP-|SP-|CX-|SC-P|Artisan-)\d{3,4}$')]
     [string[]]$Model,
 
     [ValidatePattern('^\d+\.\d+\.\d+$')]
@@ -307,7 +307,7 @@ if ($Model.Count -ne 1 -and ($PSBoundParameters.ContainsKey('ReleaseTag') -or $P
 }
 
 foreach ($item in $Model) {
-    $modelId = $item.ToUpperInvariant()
+    $modelId = $item.ToUpperInvariant() -replace '^ARTISAN-', 'Artisan-'
 
     if ($PSBoundParameters.ContainsKey('Sha256')) {
         if ($Model.Count -ne 1) {
