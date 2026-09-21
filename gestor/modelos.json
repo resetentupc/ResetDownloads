@@ -124,6 +124,7 @@
     { "modelo": "MB5320", "id": "mb5320", "tag": "MB5320-16", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/MB5320-16/mb5320.1.0.0.nupkg" },
     { "modelo": "MB5410", "id": "mb5410", "tag": "MB5410-16", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/MB5410-16/mb5410.1.0.0.nupkg" },
     { "modelo": "MB5420", "id": "mb5420", "tag": "MB5420-16", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/MB5420-16/mb5420.1.0.0.nupkg" },
+    { "modelo": "MB5450", "id": "mb5450", "tag": "MB5450-16", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/MB5450-16/mb5450.1.0.0.nupkg" },
     { "modelo": "SC-P600", "id": "sc-p600", "tag": "SC-P600", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/SC-P600/sc-p600.1.0.0.nupkg" },
     { "modelo": "SP-1390", "id": "sp-1390", "tag": "SP-1390", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/SP-1390/sp-1390.1.0.0.nupkg" },
     { "modelo": "SP-1410", "id": "sp-1410", "tag": "SP-1410", "url": "https://github.com/resetentupc/ResetDownloads/releases/download/SP-1410/sp-1410.1.0.0.nupkg" },
