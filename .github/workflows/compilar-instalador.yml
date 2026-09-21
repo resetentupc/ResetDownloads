@@ -1,0 +1,66 @@
+name: Compilar instalador (.exe)
+
+# Genera gestor/Instalador-ResetEntuPC.exe A PARTIR DE gestor/Instalador-ResetEntuPC.ps1 con PS2EXE,
+# con exactamente estos parámetros:  -noConsole -requireAdmin -STA
+#   -noConsole    : sin ventana de consola negra (aplicación de ventanas).
+#   -requireAdmin : Windows pide permisos de administrador antes de abrir el programa.
+#   -STA          : hilo de interfaz correcto para Windows Forms (la ventana no se cuelga).
+#
+# Se ejecuta cuando cambia el .ps1 en main y también a mano (Actions > Run workflow). Así el .exe del
+# repositorio siempre corresponde al código fuente publicado. Solo hace commit si el .exe cambió.
+#
+# Seguridad: usa solo el GITHUB_TOKEN del propio flujo; el único paquete externo es el módulo ps2exe de
+# la PowerShell Gallery (autor Markus Scholtes, https://github.com/MScholtes/PS2EXE).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gestor/Instalador-ResetEntuPC.ps1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compilar-instalador
+  cancel-in-progress: false
+
+jobs:
+  compilar:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Instalar PS2EXE
+        shell: powershell
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+          Install-Module ps2exe -Scope CurrentUser -Force
+          $m = Get-Module -ListAvailable ps2exe | Sort-Object Version -Descending | Select-Object -First 1
+          "ps2exe $($m.Version)"
+
+      - name: Compilar
+        shell: powershell
+        run: |
+          Set-Location gestor
+          Invoke-ps2exe -inputFile .\Instalador-ResetEntuPC.ps1 -outputFile .\Instalador-ResetEntuPC.exe -noConsole -requireAdmin -STA
+          if (-not (Test-Path .\Instalador-ResetEntuPC.exe)) { throw 'No se generó el .exe' }
+          $f = Get-Item .\Instalador-ResetEntuPC.exe
+          "Generado: $($f.Name)  $($f.Length) bytes"
+          "SHA256: $((Get-FileHash $f.FullName).Hash)"
+
+      - name: Guardar el .exe (solo si cambió)
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain -- gestor/Instalador-ResetEntuPC.exe)" ]; then
+            echo "El .exe no cambió: no hay nada que guardar."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gestor/Instalador-ResetEntuPC.exe
+          git commit -m "build: compilar Instalador-ResetEntuPC.exe desde el .ps1 publicado"
+          git push || { git pull --rebase origin main && git push; }
