@@ -1,0 +1,58 @@
+name: Actualizar lista de modelos del instalador
+
+# Mantiene al día gestor/modelos.json, la lista de modelos que descarga el instalador de
+# ResetEntuPC.com (al abrirse y con el botón "Actualizar lista de modelos").
+#
+# Se ejecuta cuando el flujo "Generar nupkg de Chocolatey" termina bien (es decir, cuando ya hay
+# un .nupkg nuevo en un release) y también a mano desde la pestaña Actions ("Run workflow").
+# Lee los releases públicos con gestor/Generar-ListaModelos.ps1 y, SOLO si la lista de modelos
+# cambió, hace un commit en main con el archivo actualizado.
+#
+# Seguridad: solo usa el GITHUB_TOKEN del propio flujo (permiso de escritura en este repositorio),
+# no ejecuta código de pull requests y no descarga nada de fuera de GitHub.
+on:
+  workflow_run:
+    workflows: ["Generar nupkg de Chocolatey"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Si terminan varios flujos a la vez (por ejemplo, al publicar muchos modelos), se hacen de uno en
+# uno; cada ejecución lee la lista completa, así que la última siempre deja el resultado correcto.
+concurrency:
+  group: actualizar-lista-modelos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    # Solo si el flujo anterior terminó bien (o si se lanza a mano).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Regenerar la lista de modelos
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./gestor/Generar-ListaModelos.ps1
+
+      - name: Guardar los cambios (solo si los hay)
+        shell: bash
+        run: |
+          # "status --porcelain" también detecta el archivo cuando es nuevo (la primera vez).
+          if [ -z "$(git status --porcelain -- gestor/modelos.json)" ]; then
+            echo "La lista ya estaba al día: no hay nada que guardar."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gestor/modelos.json
+          git commit -m "chore: actualizar la lista de modelos del instalador"
+          # Si mientras tanto alguien subió otro commit a main, se reintenta sobre lo último.
+          git push || { git pull --rebase origin main && git push; }
